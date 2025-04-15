@@ -1,0 +1,11 @@
+version: '3.8'
+services:
+  redis:
+    image: redis:7.4.2
+    ports:
+      - "6379:6379"
+  elasticmq:
+    image: softwaremill/elasticmq-native:1.6.12
+    ports:
+      - "9324:9324"
+      - "9325:9325"

@@ -1,10 +1,11 @@
 package com.ninjaone.dundie_awards.service.transaction;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.ninjaone.dundie_awards.cache.AwardsCache;
 import com.ninjaone.dundie_awards.MessageBroker;
+import com.ninjaone.dundie_awards.exception.MessageBrokerException;
 import com.ninjaone.dundie_awards.model.Activity;
 import com.ninjaone.dundie_awards.model.AwardEvent;
+import com.ninjaone.dundie_awards.service.AwardService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -20,27 +21,37 @@ public class AwardTxListener {
 
     private final MessageBroker messageBroker;
 
+    private final AwardService awardService;
+
     public AwardTxListener(
             final AwardsCache awardsCache,
-            final MessageBroker messageBroker) {
+            final MessageBroker messageBroker,
+            final AwardService awardService) {
         this.awardsCache = awardsCache;
         this.messageBroker = messageBroker;
+        this.awardService = awardService;
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    protected void handleTransactionCommit(AwardEvent event) {
-        log.info("Award transaction commit event for Organization {}", event.organizationId());
+    protected void onSuccess(AwardEvent event) {
+        log.info("AwardTxListener.onSuccess transaction commited for organizationId: {}", event.organizationId());
         awardsCache.addAwards(event.awardsGiven());
 
         String message = String.format(
                 "Total of %s given awards to organization id %s", event.awardsGiven(), event.organizationId());
 
         Activity activity = new Activity(now(), message);
-        messageBroker.sendMessage(activity);
+        try {
+            messageBroker.sendMessage(activity);
+            log.info("AwardTxListener.onSuccess message successfully sent to Queue.");
+        } catch (MessageBrokerException e) {
+            log.error("AwardTxListener.onSuccess message broker returned error. Will rollback awards.");
+            awardService.processAwardRollback(activity);
+        }
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_ROLLBACK)
-    protected void handleTransactionRollback(AwardEvent event) {
-        log.warn("Award transaction rollback event for Organization {}", event.organizationId());
+    protected void onError(AwardEvent event) {
+        log.warn("AwardTxListener.onError transaction rollback for organizationId {}", event.organizationId());
     }
 }

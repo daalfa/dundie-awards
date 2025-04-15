@@ -23,7 +23,7 @@ public class DataLoader implements CommandLineRunner {
         this.organizationRepository = organizationRepository;
     }
 
-    //todo: do not include in production
+    //todo: do not include in production or use spring profile dev
     @Override
     public void run(String... args) {
         // uncomment to reseed data

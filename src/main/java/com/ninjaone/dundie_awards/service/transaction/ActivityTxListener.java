@@ -18,13 +18,13 @@ public class ActivityTxListener {
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    protected void handleTransactionCommit(Activity event) {
-        log.info("Activity transaction commit event {}", event);
+    protected void onSuccess(Activity event) {
+        log.info("ActivityTxListener.onSuccess transaction commited for Activity {}", event);
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_ROLLBACK)
-    protected void handleTransactionRollback(Activity event) {
-        log.warn("Activity transaction rollback event {}", event);
+    protected void onError(Activity event) {
+        log.warn("ActivityTxListener.onError transaction rollback for Activity {}", event);
         awardService.processAwardRollback(event);
     }
 }

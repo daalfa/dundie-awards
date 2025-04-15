@@ -2,18 +2,24 @@ package com.ninjaone.dundie_awards;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ninjaone.dundie_awards.exception.MessageBrokerException;
 import com.ninjaone.dundie_awards.model.Activity;
+import io.awspring.cloud.sqs.operations.MessagingOperationFailedException;
 import io.awspring.cloud.sqs.operations.SendResult;
 import io.awspring.cloud.sqs.operations.SqsTemplate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.sqs.SqsAsyncClient;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlResponse;
 import software.amazon.awssdk.services.sqs.model.Message;
+import software.amazon.awssdk.services.sqs.model.QueueDoesNotExistException;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageResponse;
 
 import java.util.List;
+
+import static java.util.Collections.emptyList;
 
 @Slf4j
 @Component
@@ -32,9 +38,14 @@ public class MessageBroker {
         this.objectMapper = objectMapper;
     }
 
-    public void sendMessage(Activity message) {
-        SendResult<Object> result = sqsTemplate.send(ACTIVITY_QUEUE, message);
-        log.info("MessageBroker message sent with id: {}", result.messageId());
+    public void sendMessage(Activity message) throws MessageBrokerException {
+        try {
+            SendResult<Object> result = sqsTemplate.send(ACTIVITY_QUEUE, message);
+            log.info("MessageBroker message sent with id: {}", result.messageId());
+        } catch (MessagingOperationFailedException e) {
+            log.error("SQS server connection error, unable to send message: {}", e.getMessage());
+            throw new MessageBrokerException(e.getMessage());
+        }
     }
 
     public List<Activity> getMessages() {
@@ -43,25 +54,30 @@ public class MessageBroker {
 
     // Hacky way to peek SQS messages. Should not be used in production
     public List<Activity> peek() {
-        GetQueueUrlResponse queueUrlResponse = sqsAsyncClient.getQueueUrl(req ->
-                req.queueName(ACTIVITY_QUEUE)).join();
+        try {
+            GetQueueUrlResponse queueUrlResponse = sqsAsyncClient.getQueueUrl(req ->
+                    req.queueName(ACTIVITY_QUEUE)).join();
 
-        String queueURL = queueUrlResponse.queueUrl();
+            String queueURL = queueUrlResponse.queueUrl();
 
-        ReceiveMessageRequest receiveRequest = ReceiveMessageRequest.builder()
-                .queueUrl(queueURL)
-                .maxNumberOfMessages(10)
-                .waitTimeSeconds(1)
-                .visibilityTimeout(1)
-                .build();
+            ReceiveMessageRequest receiveRequest = ReceiveMessageRequest.builder()
+                    .queueUrl(queueURL)
+                    .maxNumberOfMessages(10)
+                    .waitTimeSeconds(1)
+                    .visibilityTimeout(1)
+                    .build();
 
-        log.info("Attempt to receiveMany");
-        ReceiveMessageResponse response = sqsAsyncClient.receiveMessage(receiveRequest).join();
+            log.info("Attempt to receiveMany");
+            ReceiveMessageResponse response = sqsAsyncClient.receiveMessage(receiveRequest).join();
 
-        List<Activity> activities = response.messages().stream().map(this::toActivity).toList();
+            List<Activity> activities = response.messages().stream().map(this::toActivity).toList();
 
-        log.info("Finish receiveMany: {}", activities);
-        return activities;
+            log.info("Finish receiveMany: {}", activities);
+            return activities;
+        } catch (QueueDoesNotExistException | SdkClientException e) {
+            log.error("SQS server connection error or queue dont exist yet: {}", e.getMessage());
+            return emptyList();
+        }
     }
 
     private Activity toActivity(Message message) {
