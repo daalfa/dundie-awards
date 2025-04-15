@@ -2,10 +2,11 @@ package com.ninjaone.dundie_awards.service;
 
 import com.ninjaone.dundie_awards.dto.AwardResponseDTO;
 import com.ninjaone.dundie_awards.exception.NotFoundException;
+import com.ninjaone.dundie_awards.model.Activity;
 import com.ninjaone.dundie_awards.model.Employee;
 import com.ninjaone.dundie_awards.repository.EmployeeRepository;
 import com.ninjaone.dundie_awards.repository.OrganizationRepository;
-import com.ninjaone.dundie_awards.service.transaction.AwardTxEvent;
+import com.ninjaone.dundie_awards.model.AwardEvent;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -38,18 +39,12 @@ public class AwardService {
     @Transactional
     public AwardResponseDTO processAwardRequestByOrganization(Long orgId) {
         int awardsGiven = giveDundieAwardByOrganizationId(orgId);
-
-        if (awardsGiven > 0) {
-            log.debug("Publishing AwardsGivenEvent for orgId: {} with {} awards", orgId, awardsGiven);
-            eventPublisher.publishEvent(new AwardTxEvent(awardsGiven, orgId));
-        }
-
         return new AwardResponseDTO("Given awards: "+awardsGiven, true);
     }
 
-
     private int giveDundieAwardByOrganizationId(Long orgId) {
         log.info("giveDundieAwardByOrganizationId {}", orgId);
+
         AtomicInteger awardsGiven = new AtomicInteger(0);
 
         List<Employee> employeeList = organizationRepository.findById(orgId)
@@ -64,12 +59,23 @@ public class AwardService {
             awards++;
             employee.setDundieAwards(awards);
             employeeRepository.save(employee);
-            log.debug("Award given to employee {} totaling {} awards", employee.getId(), awards);
             awardsGiven.getAndIncrement();
+            log.info("Employee {} has now {} awards", employee.getId(), awards);
         });
 
         //todo: save this to ledger/audit table as pending
 
+        if (awardsGiven.get() > 0) {
+            log.info("Publishing AwardsGivenEvent for orgId: {} with {} awards", orgId, awardsGiven);
+            eventPublisher.publishEvent(new AwardEvent(awardsGiven.get(), orgId));
+        }
+
         return awardsGiven.get();
     }
+
+    @Transactional
+    public void processAwardRollback(Activity event) {
+        //todo: implement rollback compensation method
+    }
+
 }

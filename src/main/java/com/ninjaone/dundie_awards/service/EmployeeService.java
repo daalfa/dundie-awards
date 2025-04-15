@@ -33,7 +33,7 @@ public class EmployeeService {
 
     public Employee getEmployeeById(Long id) {
         return employeeRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Employee not found by id: "+id));
+                .orElseThrow(() -> new NotFoundException("Employee not found by id: " + id));
     }
 
     public Employee createEmployee(EmployeeDTO employeeDto) {

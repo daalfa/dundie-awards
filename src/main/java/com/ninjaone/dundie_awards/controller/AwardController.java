@@ -9,16 +9,16 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 public class AwardController {
 
-    private AwardService awardService;
+    private final AwardService awardService;
 
-    public AwardController(final AwardService awardService) {
+    public AwardController(AwardService awardService) {
         this.awardService = awardService;
     }
 
-    @PostMapping("/give-dundie-award/{orgId}")
+    @PostMapping("/give-dundie-award/{organizationId}")
     @ResponseStatus(HttpStatus.CREATED)
-    public AwardResponseDTO giveDundieAward(@PathVariable("orgId") Long orgId) {
-        return awardService.processAwardRequestByOrganization(orgId);
+    public AwardResponseDTO giveDundieAward(@PathVariable("organizationId") Long organizationId) {
+        return awardService.processAwardRequestByOrganization(organizationId);
     }
 }
 
