@@ -1,6 +1,8 @@
 package com.ninjaone.dundie_awards.service;
 
+import com.ninjaone.dundie_awards.dto.ActivityMessageDTO;
 import com.ninjaone.dundie_awards.model.Activity;
+import com.ninjaone.dundie_awards.model.event.ActivityEvent;
 import com.ninjaone.dundie_awards.repository.ActivityRepository;
 import io.awspring.cloud.sqs.annotation.SqsListener;
 import jakarta.transaction.Transactional;
@@ -27,9 +29,13 @@ public class ActivityService {
 
     @SqsListener(queueNames = ACTIVITY_QUEUE, acknowledgementMode = "ALWAYS")
     @Transactional
-    protected void listener(Activity message) {
+    protected void listener(ActivityMessageDTO message) {
         log.info("You've Got Mail! {}", message);
-        activityRepository.save(message);
-        eventPublisher.publishEvent(message);
+
+        Activity activity = new Activity(message.occuredAt(), message.event());
+        activityRepository.save(activity);
+
+        ActivityEvent activityEvent = new ActivityEvent(message.transactionSagaId());
+        eventPublisher.publishEvent(activityEvent);
     }
 }

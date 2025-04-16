@@ -2,6 +2,7 @@ package com.ninjaone.dundie_awards;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ninjaone.dundie_awards.dto.ActivityMessageDTO;
 import com.ninjaone.dundie_awards.exception.MessageBrokerException;
 import com.ninjaone.dundie_awards.model.Activity;
 import io.awspring.cloud.sqs.operations.MessagingOperationFailedException;
@@ -16,8 +17,10 @@ import software.amazon.awssdk.services.sqs.model.Message;
 import software.amazon.awssdk.services.sqs.model.QueueDoesNotExistException;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageResponse;
+import software.amazon.awssdk.services.sqs.model.SqsException;
 
 import java.util.List;
+import java.util.concurrent.CompletionException;
 
 import static java.util.Collections.emptyList;
 
@@ -38,7 +41,7 @@ public class MessageBroker {
         this.objectMapper = objectMapper;
     }
 
-    public void sendMessage(Activity message) throws MessageBrokerException {
+    public void sendMessage(ActivityMessageDTO message) throws MessageBrokerException {
         try {
             SendResult<Object> result = sqsTemplate.send(ACTIVITY_QUEUE, message);
             log.info("MessageBroker message sent with id: {}", result.messageId());
@@ -48,12 +51,12 @@ public class MessageBroker {
         }
     }
 
-    public List<Activity> getMessages() {
+    public List<ActivityMessageDTO> getMessages() {
         return peek();
     }
 
     // Hacky way to peek SQS messages. Should not be used in production
-    public List<Activity> peek() {
+    public List<ActivityMessageDTO> peek() {
         try {
             GetQueueUrlResponse queueUrlResponse = sqsAsyncClient.getQueueUrl(req ->
                     req.queueName(ACTIVITY_QUEUE)).join();
@@ -70,19 +73,22 @@ public class MessageBroker {
             log.info("Attempt to receiveMany");
             ReceiveMessageResponse response = sqsAsyncClient.receiveMessage(receiveRequest).join();
 
-            List<Activity> activities = response.messages().stream().map(this::toActivity).toList();
+            List<ActivityMessageDTO> activities = response.messages().stream().map(this::toActivity).toList();
 
             log.info("Finish receiveMany: {}", activities);
             return activities;
-        } catch (QueueDoesNotExistException | SdkClientException e) {
-            log.error("SQS server connection error or queue dont exist yet: {}", e.getMessage());
+        } catch (SqsException | CompletionException e) {
+            log.error("SQS server connection error or queue do not exist yet: {}", e.getMessage());
+            return emptyList();
+        } catch (Exception e) {
+            log.error("SQS Error", e);
             return emptyList();
         }
     }
 
-    private Activity toActivity(Message message) {
+    private ActivityMessageDTO toActivity(Message message) {
         try {
-            return objectMapper.readValue(message.body(), Activity.class);
+            return objectMapper.readValue(message.body(), ActivityMessageDTO.class);
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }

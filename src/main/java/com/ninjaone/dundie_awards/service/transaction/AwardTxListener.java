@@ -1,10 +1,11 @@
 package com.ninjaone.dundie_awards.service.transaction;
 
-import com.ninjaone.dundie_awards.cache.AwardsCache;
+import com.ninjaone.dundie_awards.AwardsCache;
 import com.ninjaone.dundie_awards.MessageBroker;
+import com.ninjaone.dundie_awards.dto.ActivityMessageDTO;
 import com.ninjaone.dundie_awards.exception.MessageBrokerException;
 import com.ninjaone.dundie_awards.model.Activity;
-import com.ninjaone.dundie_awards.model.AwardEvent;
+import com.ninjaone.dundie_awards.model.event.AwardEvent;
 import com.ninjaone.dundie_awards.service.AwardService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -40,18 +41,19 @@ public class AwardTxListener {
         String message = String.format(
                 "Total of %s given awards to organization id %s", event.awardsGiven(), event.organizationId());
 
-        Activity activity = new Activity(now(), message);
+        ActivityMessageDTO activityMessageDTO = new ActivityMessageDTO(now(), message, event.transactionSagaId());
+
         try {
-            messageBroker.sendMessage(activity);
+            messageBroker.sendMessage(activityMessageDTO);
             log.info("AwardTxListener.onSuccess message successfully sent to Queue.");
         } catch (MessageBrokerException e) {
             log.error("AwardTxListener.onSuccess message broker returned error. Will rollback awards.");
-            awardService.processAwardRollback(activity);
+            awardService.processAwardRollback(event.transactionSagaId());
         }
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_ROLLBACK)
     protected void onError(AwardEvent event) {
-        log.warn("AwardTxListener.onError transaction rollback for organizationId {}", event.organizationId());
+        log.error("AwardTxListener.onError transaction rollback for organizationId {}", event.organizationId());
     }
 }

@@ -1,4 +1,4 @@
-package com.ninjaone.dundie_awards.cache;
+package com.ninjaone.dundie_awards;
 
 import com.ninjaone.dundie_awards.repository.EmployeeRepository;
 import lombok.extern.slf4j.Slf4j;
