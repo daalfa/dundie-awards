@@ -14,15 +14,15 @@ public class DataLoader implements CommandLineRunner {
 
     private final EmployeeRepository employeeRepository;
     private final OrganizationRepository organizationRepository;
-    private final AwardsCache awardsCache;
 
-    public DataLoader(EmployeeRepository employeeRepository, OrganizationRepository organizationRepository, AwardsCache awardsCache) {
-        this.awardsCache = awardsCache;
+    public DataLoader(
+            final EmployeeRepository employeeRepository,
+            final OrganizationRepository organizationRepository) {
         this.employeeRepository = employeeRepository;
         this.organizationRepository = organizationRepository;
     }
 
-    //todo: do not include in production or use spring profile dev
+    //todo: do not include in production or at least use spring profile dev
     @Override
     public void run(String... args) {
         // uncomment to reseed data
@@ -45,10 +45,5 @@ public class DataLoader implements CommandLineRunner {
             employeeRepository.save(new Employee("Jim", "Halpert", organizationSquanchy));
             employeeRepository.save(new Employee("Pam", "Beesley", organizationSquanchy));
         }
-
-        int totalAwards = employeeRepository.findAll().stream()
-                .mapToInt(employee -> Objects.requireNonNullElse(employee.getDundieAwards(), 0))
-                .sum();
-        this.awardsCache.setTotalAwards(totalAwards);
     }
 }

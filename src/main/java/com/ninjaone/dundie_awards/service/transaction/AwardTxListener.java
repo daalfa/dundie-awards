@@ -4,7 +4,6 @@ import com.ninjaone.dundie_awards.AwardsCache;
 import com.ninjaone.dundie_awards.MessageBroker;
 import com.ninjaone.dundie_awards.dto.ActivityMessageDTO;
 import com.ninjaone.dundie_awards.exception.MessageBrokerException;
-import com.ninjaone.dundie_awards.model.Activity;
 import com.ninjaone.dundie_awards.model.event.AwardEvent;
 import com.ninjaone.dundie_awards.service.AwardService;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +35,7 @@ public class AwardTxListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     protected void onSuccess(AwardEvent event) {
         log.info("AwardTxListener.onSuccess transaction commited for organizationId: {}", event.organizationId());
-        awardsCache.addAwards(event.awardsGiven());
+        awardsCache.incrementAwards(event.awardsGiven());
 
         String message = String.format(
                 "Total of %s given awards to organization id %s", event.awardsGiven(), event.organizationId());

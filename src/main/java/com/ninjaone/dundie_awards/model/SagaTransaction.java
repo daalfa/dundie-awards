@@ -32,7 +32,7 @@ public class SagaTransaction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "saga_id", unique = true, nullable = false)
+    @Column(name = "saga_id", unique = true, nullable = false, updatable = false)
     private String sagaId;
 
     @Enumerated(EnumType.STRING)
@@ -40,9 +40,14 @@ public class SagaTransaction {
 
     @Lob
     @Convert(converter = ListConverter.class)
+    @Column(updatable = false)
     private List<Long> employeeIds;
 
-    private Integer awardsEach;
+//    @Column(updatable = false)
+    private int awardsEach;
+
+//    @Column(updatable = false)
+    private int awardsGiven;
 
     @CreationTimestamp
     @Column(updatable = false)
@@ -58,9 +63,14 @@ public class SagaTransaction {
         }
     }
 
-    public SagaTransaction(SagaStatus status, List<Long> employeeIds, Integer awardsEach) {
+    public SagaTransaction(
+            SagaStatus status,
+            List<Long> employeeIds,
+            int awardsEach,
+            int awardsGiven) {
         this.status = status;
         this.employeeIds = employeeIds;
         this.awardsEach = awardsEach;
+        this.awardsGiven = awardsGiven;
     }
 }

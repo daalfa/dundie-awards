@@ -3,6 +3,7 @@ package com.ninjaone.dundie_awards;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ninjaone.dundie_awards.dto.ActivityMessageDTO;
+import com.ninjaone.dundie_awards.dto.SagaTransactionResponseDTO;
 import com.ninjaone.dundie_awards.exception.MessageBrokerException;
 import com.ninjaone.dundie_awards.model.Activity;
 import io.awspring.cloud.sqs.operations.MessagingOperationFailedException;
@@ -29,6 +30,8 @@ import static java.util.Collections.emptyList;
 public class MessageBroker {
 
     public static final String ACTIVITY_QUEUE = "activity_queue";
+    public static final String SAGA_QUEUE = "saga_response_queue";
+
     private final SqsTemplate sqsTemplate;
     private final SqsAsyncClient sqsAsyncClient;
     private final ObjectMapper objectMapper;
@@ -41,9 +44,19 @@ public class MessageBroker {
         this.objectMapper = objectMapper;
     }
 
+    public void sendMessage(SagaTransactionResponseDTO message) throws MessageBrokerException {
+        try {
+            SendResult<SagaTransactionResponseDTO> result = sqsTemplate.send(SAGA_QUEUE, message);
+            log.info("MessageBroker Saga message sent with id: {}", result.messageId());
+        } catch (MessagingOperationFailedException e) {
+            log.error("SQS server connection error, unable to send Saga message: {}", e.getMessage());
+            throw new MessageBrokerException(e.getMessage());
+        }
+    }
+
     public void sendMessage(ActivityMessageDTO message) throws MessageBrokerException {
         try {
-            SendResult<Object> result = sqsTemplate.send(ACTIVITY_QUEUE, message);
+            SendResult<ActivityMessageDTO> result = sqsTemplate.send(ACTIVITY_QUEUE, message);
             log.info("MessageBroker message sent with id: {}", result.messageId());
         } catch (MessagingOperationFailedException e) {
             log.error("SQS server connection error, unable to send message: {}", e.getMessage());

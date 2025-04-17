@@ -32,10 +32,10 @@ public class ActivityService {
     protected void listener(ActivityMessageDTO message) {
         log.info("You've Got Mail! {}", message);
 
-        Activity activity = new Activity(message.occuredAt(), message.event());
-        activityRepository.save(activity);
-
         ActivityEvent activityEvent = new ActivityEvent(message.transactionSagaId());
         eventPublisher.publishEvent(activityEvent);
+
+        Activity activity = new Activity(message.occuredAt(), message.event());
+        activityRepository.save(activity);
     }
 }

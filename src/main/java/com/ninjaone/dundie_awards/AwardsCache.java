@@ -16,7 +16,7 @@ public class AwardsCache {
     private static final String TOTAL_AWARDS_KEY = "total_awards";
     private static final Duration TOTAL_AWARDS_TTL = Duration.ofSeconds(300);
 
-    private boolean isMarkedToInvalidate = false;
+    private volatile boolean isMarkedToInvalidate = true;
     private final StringRedisTemplate redisTemplate;
     private final EmployeeRepository employeeRepository;
 
@@ -26,28 +26,35 @@ public class AwardsCache {
         this.employeeRepository = employeeRepository;
     }
 
-    public void addAwards(long awardsToAdd) {
+    public synchronized void invalidateCache() {
+        isMarkedToInvalidate = true;
+    }
+
+    /**
+     * Best-effort cache update
+     */
+    public void incrementAwards(long awardsToAdd) {
         try {
             Long total = redisTemplate.opsForValue().increment(TOTAL_AWARDS_KEY, awardsToAdd);
-            log.info("AwardsCache.addAwards {} total: {}", awardsToAdd, total);
+            log.info("AwardsCache.addAwards {} new total: {}", awardsToAdd, total);
             redisTemplate.expire(TOTAL_AWARDS_KEY, TOTAL_AWARDS_TTL);
         } catch (RedisConnectionFailureException | RedisSystemException e) {
             log.error("AwardsCache.addAwards Redis connection error: {}", e.getMessage());
-            synchronized (this) {
-                isMarkedToInvalidate = true;
-            }
+            invalidateCache();
         }
     }
 
-    public void setTotalAwards(long totalAwards) {
+    /**
+     * Best-effort cache update
+     */
+    public void decrementAwards(long awardsToSubtract) {
         try {
-            log.info("AwardsCache.setTotalAwards {}", totalAwards);
-            redisTemplate.opsForValue().set(TOTAL_AWARDS_KEY, String.valueOf(totalAwards), TOTAL_AWARDS_TTL);
+            Long total = redisTemplate.opsForValue().decrement(TOTAL_AWARDS_KEY, awardsToSubtract);
+            log.info("AwardsCache.decrementAwards {} new total: {}", awardsToSubtract, total);
+            redisTemplate.expire(TOTAL_AWARDS_KEY, TOTAL_AWARDS_TTL);
         } catch (RedisConnectionFailureException | RedisSystemException e) {
-            log.error("AwardsCache.setTotalAwards Redis connection error: {}", e.getMessage());
-            synchronized (this) {
-                isMarkedToInvalidate = true;
-            }
+            log.error("AwardsCache.decrementAwards Redis connection error: {}", e.getMessage());
+            invalidateCache();
         }
     }
 
@@ -61,7 +68,7 @@ public class AwardsCache {
             Long databaseTotal = employeeRepository.findTotalAwards();
             total = Optional.ofNullable(databaseTotal).orElse(0L);
             log.warn("AwardsCache.getTotalAwards (cache miss, fetched from db) {}", total);
-            this.setTotalAwards(total);
+            this.setValue(total);
         }
         return total;
     }
@@ -71,8 +78,10 @@ public class AwardsCache {
             String value = redisTemplate.opsForValue().get(TOTAL_AWARDS_KEY);
             synchronized (this) {
                 if (isMarkedToInvalidate) {
-                    log.warn("Invalidating cache");
-                    redisTemplate.delete(TOTAL_AWARDS_KEY);
+                    if(value != null) {
+                        log.warn("Invalidating cache");
+                        redisTemplate.delete(TOTAL_AWARDS_KEY);
+                    }
                     isMarkedToInvalidate = false;
                     return null;
                 }
@@ -81,6 +90,16 @@ public class AwardsCache {
         } catch (RedisConnectionFailureException | RedisSystemException e) {
             log.error("AwardsCache.getValue Redis connection error: {}", e.getMessage());
             return null;
+        }
+    }
+
+    private void setValue(long totalAwards) {
+        try {
+            log.info("AwardsCache.setValue {}", totalAwards);
+            redisTemplate.opsForValue().set(TOTAL_AWARDS_KEY, String.valueOf(totalAwards), TOTAL_AWARDS_TTL);
+        } catch (RedisConnectionFailureException | RedisSystemException e) {
+            log.error("AwardsCache.setValue Redis connection error: {}", e.getMessage());
+            invalidateCache();
         }
     }
 }

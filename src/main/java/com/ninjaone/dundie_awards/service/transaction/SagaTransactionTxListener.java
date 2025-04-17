@@ -20,7 +20,7 @@ public class SagaTransactionTxListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     protected void onSuccess(SagaTransactionEvent event) {
         log.info("SagaTransactionTxListener.onSuccess transaction commited for Activity {}", event);
-        awardsCache.setTotalAwards(awardsCache.getTotalAwards() - event.totalAwardsToDecrement());
+        awardsCache.decrementAwards(event.totalAwardsToDecrement());
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_ROLLBACK)
